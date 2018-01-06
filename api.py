@@ -656,6 +656,9 @@ def discriminant_analysis_sk_quadratic(content):
 # app.on_fetched_resource += on_fetched_resource
 app = Flask(__name__)
 CORS(app)
+@app.route('/')
+def hello():
+    return "Hello World!"
 
 @app.route('/py', methods=['GET', 'POST'])
 def main():
@@ -696,4 +699,3 @@ def main():
 
 if __name__ == '__main__':
     app.run()
-    
