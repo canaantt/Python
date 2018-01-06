@@ -1,6 +1,6 @@
 # from eve import Eve
 from flask import Flask
-# from flask_cors import CORS
+from flask_cors import CORS
 
 import json
 import base64
@@ -655,12 +655,12 @@ def discriminant_analysis_sk_quadratic(content):
 # app = Eve(settings='settings.py')
 # app.on_fetched_resource += on_fetched_resource
 app = Flask(__name__)
-# CORS(app)
+CORS(app)
 
 @app.route('/py', methods=['GET', 'POST'])
 def main():
     """ Gateway """
-    request.get_json(force=True)
+    content = request.get_json()
     function_to_invoke = {
         'cluster_sk_pca': cluster_sk_pca,
         'cluster_sk_pca_incremental': cluster_sk_pca_incremental,
@@ -692,8 +692,8 @@ def main():
         'cluster_sk_mini_batch_dictionary_learning': cluster_sk_mini_batch_dictionary_learning,
         'cluster_sk_mini_batch_sparse_pca': cluster_sk_mini_batch_sparse_pca,
     }.get(content['method'], echo)
-    requests.post(url, json={'name': 'hello world'})
     return function_to_invoke(content)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run()
+    
