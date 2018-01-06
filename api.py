@@ -692,6 +692,7 @@ def main():
         'cluster_sk_mini_batch_dictionary_learning': cluster_sk_mini_batch_dictionary_learning,
         'cluster_sk_mini_batch_sparse_pca': cluster_sk_mini_batch_sparse_pca,
     }.get(content['method'], echo)
+    requests.post(url, json={'name': 'hello world'})
     return function_to_invoke(content)
 
 if __name__ == '__main__':
