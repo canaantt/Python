@@ -17,8 +17,9 @@ RUN apt-get install -y software-properties-common && \
     pip3 install --upgrade pip && \
     pip3 install flask scipy scikit-learn eve && \
     pip3 install -U flask-cors && \
-    git clone https://github.com/mzager/Python
-
+    git clone https://github.com/canaantt/Python
+    # git clone https://github.com/mzager/Python
+    
 # Start
 EXPOSE 5000
 CMD ["python3", "Python/api.py"]
