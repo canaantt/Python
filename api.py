@@ -660,7 +660,7 @@ app = Flask(__name__)
 @app.route('/py', methods=['GET', 'POST'])
 def main():
     """ Gateway """
-    content = request.get_json()
+    request.get_json(force=True)
     function_to_invoke = {
         'cluster_sk_pca': cluster_sk_pca,
         'cluster_sk_pca_incremental': cluster_sk_pca_incremental,
