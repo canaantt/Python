@@ -1,17 +1,12 @@
-from eve import Eve
+# from eve import Eve
+from flask import Flask
+# from flask_cors import CORS
 
 import json
 import base64
 from flask import request
 from flask import jsonify
 from flask import Response
-
-from Bio.Cluster import pca
-from Bio.Cluster import kcluster
-from Bio.Cluster import kmedoids
-from Bio.Cluster import somcluster
-from Bio.Cluster import clustercentroids
-from Bio.Cluster import treecluster
 
 from sklearn.manifold import MDS
 from sklearn.manifold import TSNE
@@ -22,6 +17,8 @@ from sklearn.manifold import SpectralEmbedding
 from sklearn.decomposition import PCA
 from sklearn.decomposition import IncrementalPCA
 from sklearn.decomposition import MiniBatchSparsePCA
+from sklearn.decomposition import MiniBatchDictionaryLearning
+from sklearn.decomposition import SparseCoder
 from sklearn.decomposition import KernelPCA
 from sklearn.decomposition import RandomizedPCA
 from sklearn.decomposition import SparsePCA
@@ -49,60 +46,6 @@ def httpWrapper(content):
 
 def echo(content):
     return httpWrapper(json.dumps(content))
-
-def cluster_bio_pca(content):
-    """ Bio Centroids | data:[[]] """
-    columnmean, coordinates, components, eigenvalues = pca(content['data'])
-    return httpWrapper(json.dumps({
-        'columnmean': columnmean.tolist(),
-        'coordinates': coordinates.tolist(),
-        'components': components.tolist(),
-        'eigenvalues': eigenvalues.tolist()
-    }))
-
-def cluster_bio_tree(content):
-    """ Bio Tree | data:[[]] """
-    tree = treecluster(
-        data=content['data'], 
-        method=content['c_method'], 
-        dist=content['dist'], 
-        transpose=content['transpose'])
-    nodes = list(map(lambda node: {'l':node.left,'r':node.right,'d':node.distance}, tree))
-    return httpWrapper(json.dumps(nodes))
-
-def cluster_bio_centroids(content):
-    """ Bio Centroids | data:[[]] """
-    cdata, cmask = clustercentroids(content['data'])
-    return httpWrapper(json.dumps({
-        'cdata': cdata.tolist(),
-        'cmask': cmask.tolist()
-    }))
-
-def cluster_bio_som(content):
-    """ Bio Som | data:[[]] """
-    clusterid, celldata = somcluster(content['data'])
-    return httpWrapper(json.dumps({
-        'clusterid': clusterid.tolist(),
-        'celldata': celldata.tolist()
-    }))
-
-def cluster_bio_kmedoids(content):
-    """ Bio K-Medoids | data:[[]] """
-    clusterid, error, nfound = kmedoids(content['data'])
-    return httpWrapper(json.dumps({
-        'clusterid': clusterid.tolist(),
-        'error': error,
-        'nfound': nfound
-    }))
-
-def cluster_bio_kcluster(content):
-    """ Bio K-Cluster | data:[[]] """
-    clusterid, error, nfound = kcluster(content['data'])
-    return httpWrapper(json.dumps({
-        'clusterid': clusterid.tolist(),
-        'error': error,
-        'nfound': nfound
-    }))
 
 def cluster_sk_pca(content):
     """ SK PCA | components: N, data:[[]] """
@@ -187,6 +130,74 @@ def cluster_sk_pca_sparse(content):
         tol=content['tol'],
         method=content['sk_method'],
         n_jobs=-1
+    )
+    _result = _config.fit_transform(content['data'])
+    return httpWrapper(json.dumps({
+        'result':  _result.tolist(),
+        'components': _config.components_.tolist(),
+        'error': _config.error_,
+        'iter': _config.n_iter_
+    }))
+
+# def cluster_sk_sparse_coder(content):
+#     """ x """
+#     _config = SparseCoder(
+#         n_components=content['n_components'],
+#         alpha=content['alpha'],
+#         ridge_alpha=content['ridge_alpha'],
+#         max_iter=content['max_iter'],
+#         tol=content['tol'],
+#         method=content['sk_method'],
+#         n_jobs=-1
+#     )
+#     _result = _config.fit_transform(content['data'])
+#     return httpWrapper(json.dumps({
+#         'result':  _result.tolist(),
+#         'components': _config.components_.tolist(),
+#         'error': _config.error_,
+#         'iter': _config.n_iter_
+#     }))
+
+
+def cluster_sk_mini_batch_dictionary_learning(content):
+    """ x """
+    _config = MiniBatchDictionaryLearning(
+        n_components=content['n_components'],
+        alpha=content['alpha'],
+        n_iter=content['n_iter'], 
+        fit_algorithm=content['fit_algorithm'], 
+        n_jobs=1, 
+        batch_size=content['batch_size'], 
+        shuffle=content['shuffle'], 
+        dict_init=None, 
+        transform_algorithm=content['transform_algorithm'], 
+        transform_n_nonzero_coefs=None, 
+        transform_alpha=None, 
+        verbose=False, 
+        split_sign=content['split_sign'], 
+        random_state=None
+    )
+    _result = _config.fit_transform(content['data'])
+    return httpWrapper(json.dumps({
+        'result':  _result.tolist(),
+        'components': _config.components_.tolist(),
+        'iter': _config.n_iter_
+    }))
+
+def cluster_sk_mini_batch_sparse_pca(content):
+    """ x """
+    _config = MiniBatchSparsePCA(
+        n_components=content['n_components'],
+        alpha=content['alpha'],
+        ridge_alpha=content['ridge_alpha'],
+        n_iter=content['n_iter'], 
+        callback=None,
+        batch_size=content['batch_size'],
+        verbose=0,
+        shuffle=content['shuffle'],
+        n_jobs=-1,
+        method=content['method'],
+        random_state=None
     )
     _result = _config.fit_transform(content['data'])
     return httpWrapper(json.dumps({
@@ -635,30 +646,22 @@ def discriminant_analysis_sk_quadratic(content):
 
 
 # Start Eve Stuff
-def on_fetched_resource(resource, response):
-    for doc in response['_items']:
-        for field in doc.keys():
-            if field.startswith('_'):
-                del(doc[field])
+# def on_fetched_resource(resource, response):
+#     for doc in response['_items']:
+#         for field in doc.keys():
+#             if field.startswith('_'):
+#                 del(doc[field])
 
-app = Eve(settings='settings.py')
-app.on_fetched_resource += on_fetched_resource
+# app = Eve(settings='settings.py')
+# app.on_fetched_resource += on_fetched_resource
+app = Flask(__name__)
+# CORS(app)
 
-@app.route("/")
-def hello():
-    return "Hello Pablo!"
-
-@app.route('/cpu', methods=['GET', 'POST'])
+@app.route('/py', methods=['GET', 'POST'])
 def main():
     """ Gateway """
     content = request.get_json()
     function_to_invoke = {
-        'cluster_bio_pca': cluster_bio_pca,
-        'cluster_bio_tree': cluster_bio_tree,
-        'cluster_bio_centroids': cluster_bio_centroids,
-        'cluster_bio_som': cluster_bio_som,
-        'cluster_bio_kmedoids': cluster_bio_kmedoids,
-        'cluster_bio_kcluster': cluster_bio_kcluster,
         'cluster_sk_pca': cluster_sk_pca,
         'cluster_sk_pca_incremental': cluster_sk_pca_incremental,
         'cluster_sk_pca_kernal': cluster_sk_pca_kernal,
@@ -685,9 +688,11 @@ def main():
         'cluster_sk_agglomerative': cluster_sk_agglomerative,
         'cluster_sk_spectral': cluster_sk_spectral,
         'discriminant_analysis_sk_linear': discriminant_analysis_sk_linear,
-        'discriminant_analysis_sk_quadratic': discriminant_analysis_sk_quadratic
+        'discriminant_analysis_sk_quadratic': discriminant_analysis_sk_quadratic,
+        'cluster_sk_mini_batch_dictionary_learning': cluster_sk_mini_batch_dictionary_learning,
+        'cluster_sk_mini_batch_sparse_pca': cluster_sk_mini_batch_sparse_pca,
     }.get(content['method'], echo)
     return function_to_invoke(content)
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0")
+    app.run()
