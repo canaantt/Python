@@ -7,7 +7,7 @@ spec:
   template:
     metadata:
       labels:
-        app: notitia-python
+        app: notitia
     spec:
       containers:
       - name: notitia-python

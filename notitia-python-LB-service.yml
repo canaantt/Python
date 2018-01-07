@@ -8,5 +8,5 @@ spec:
     targetPort: python-port
     protocol: TCP
   selector:
-    app: notitia-python
+    app: notitia
   type: LoadBalancer
