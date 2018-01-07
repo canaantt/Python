@@ -1,0 +1,17 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: deployment-notitia-python
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: notitia-python
+    spec:
+      containers:
+      - name: notitia-python
+        image: canaantt/notitia-python
+        ports:
+        - name: python-port
+          containerPort: 80
