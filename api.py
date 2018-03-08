@@ -29,6 +29,7 @@ from sklearn.decomposition import FastICA
 from sklearn.decomposition import DictionaryLearning
 from sklearn.decomposition import TruncatedSVD
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.cluster import AffinityPropagation
@@ -40,12 +41,59 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.cluster import MeanShift
 from sklearn.cluster import SpectralClustering
 
+import pandas as pd
+import sys, numpy, scipy
+import scipy.cluster.hierarchy as hier
+import scipy.spatial.distance as dist
+
+from lifelines import KaplanMeierFitter
+from lifelines import NelsonAalenFitter
+from lifelines import CoxPHFitter
+from lifelines import AalenAdditiveFitter
+
 
 def httpWrapper(content):
     return Response(content, status=200, mimetype='application/json')
 
 def echo(content):
     return httpWrapper(json.dumps(content))
+
+def survival_ll_kaplan_meier(content):
+    T = numpy.array(content['times'], dtype=int)
+    E = numpy.array(content['events'], dtype=bool)
+    kmf = KaplanMeierFitter()
+    kmf.fit(T,E)
+    return httpWrapper( json.dumps({
+		'result': kmf.survival_function_.to_dict(),
+		'confidence': kmf.confidence_interval_.to_dict(),
+		'median': kmf.median_
+		}))
+
+def survival_ll_nelson_aalen(content):
+	kmf = NelsonAalenFitter()
+	kmf.fit(content['times'], event_observed=content['events'])
+	return httpWrapper( json.dumps({
+		'result': kmf.survival_function_,
+		'hazard': cumulative_hazard_,
+		'median': kmf.kmf.median_
+		}))
+
+def cluster_sp_agglomerative(content):
+    """ Agglomerative Clustering """
+    if content['transpose'] == 1:
+        content['data'] = list(map(list, zip(*content['data'])))
+    dataMatrix = numpy.array(content['data'])
+    linkageMatrix = hier.linkage(dataMatrix,
+        method=content['sp_method'],
+        metric=content['sp_metric'],
+        optimal_ordering=content['sp_ordering'] == 1)
+    heatmapOrder = hier.leaves_list(linkageMatrix)
+    orderedDataMatrix = dataMatrix[heatmapOrder,:]
+    return httpWrapper( json.dumps({
+		'result': orderedDataMatrix.tolist(),
+		'order': heatmapOrder.tolist(),
+		'dendo': hier.dendrogram(linkageMatrix, no_plot=True)
+	}))
 
 def cluster_sk_pca(content):
     """ SK PCA | components: N, data:[[]] """
@@ -139,25 +187,24 @@ def cluster_sk_pca_sparse(content):
         'iter': _config.n_iter_
     }))
 
-# def cluster_sk_sparse_coder(content):
-#     """ x """
-#     _config = SparseCoder(
-#         n_components=content['n_components'],
-#         alpha=content['alpha'],
-#         ridge_alpha=content['ridge_alpha'],
-#         max_iter=content['max_iter'],
-#         tol=content['tol'],
-#         method=content['sk_method'],
-#         n_jobs=-1
-#     )
-#     _result = _config.fit_transform(content['data'])
-#     return httpWrapper(json.dumps({
-#         'result':  _result.tolist(),
-#         'components': _config.components_.tolist(),
-#         'error': _config.error_,
-#         'iter': _config.n_iter_
-#     }))
-
+def cluster_sk_sparse_coder(content):
+    """ x """
+    _config = SparseCoder(
+        n_components=content['n_components'],
+        alpha=content['alpha'],
+        ridge_alpha=content['ridge_alpha'],
+        max_iter=content['max_iter'],
+        tol=content['tol'],
+        method=content['sk_method'],
+        n_jobs=-1
+    )
+    _result = _config.fit_transform(content['data'])
+    return httpWrapper(json.dumps({
+        'result':  _result.tolist(),
+        'components': _config.components_.tolist(),
+        'error': _config.error_,
+        'iter': _config.n_iter_
+    }))
 
 def cluster_sk_mini_batch_dictionary_learning(content):
     """ x """
@@ -196,14 +243,13 @@ def cluster_sk_mini_batch_sparse_pca(content):
         verbose=0,
         shuffle=content['shuffle'],
         n_jobs=-1,
-        method=content['method'],
+        method=content['sk_method'],
         random_state=None
     )
     _result = _config.fit_transform(content['data'])
     return httpWrapper(json.dumps({
         'result':  _result.tolist(),
         'components': _config.components_.tolist(),
-        'error': _config.error_,
         'iter': _config.n_iter_
     }))
 
@@ -476,10 +522,13 @@ def cluster_sk_dbscan(content):
         'components': _config.components_,
         'labels': _config.labels_
     }))
+
+
 def cluster_sk_agglomerative(content):
-    """ Agglomerative Clustering """
+    if content['transpose'] == 1:
+    	content['data'] = list(map(list, zip(*content['data'])))
     _config = AgglomerativeClustering(
-        n_clusters = content['n_clusters'],
+        n_clusters = len(content['data']), #content['n_clusters'],
         affinity = content['affinity'],
         linkage = content['linkage'],
     )
@@ -489,10 +538,9 @@ def cluster_sk_agglomerative(content):
         'n_leaves': _config.n_leaves_,
         'n_components': _config.n_components_,
         'labels': _config.labels_.tolist(),
-        'children': base64.b64encode(_config.children_)
-        #'children': _config.children_.tolist(),
-        #'labels': _config.labels_.toList()
+        'children': _config.children_.tolist(),
     }))
+
 def cluster_sk_feature_agglomeration(content):
     """ FeatureAgglomeration """
     _config = FeatureAgglomeration(
@@ -601,17 +649,17 @@ def cluster_sk_spectral(content):
         'labels': _config.labels_
     }))
 
-def discriminant_analysis_sk_linear(content):
+def manifold_sk_lineardiscriminantanalysis(content):
     """ discriminant_analysis_LinearDiscriminantAnalysis """
     _config = LinearDiscriminantAnalysis(
         solver = content['solver'],
-        shrinkage = content['shrinkage'],
-        priors = content['priors'],
+        shrinkage = None if (content['shrinkage']=='None') else content['shrinkage'],
+        priors = None,
         n_components = content['n_components'],
         store_covariance = content['store_covariance'],
         tol = content['tol']
     )
-    _result = _config.fit_predict(content['data'])
+    _result = _config.fit_transform(content['data'], y=None)
     return httpWrapper( json.dumps({
         'result': _result.tolist(),
         'coef': _config.coef_,
@@ -625,15 +673,15 @@ def discriminant_analysis_sk_linear(content):
         'classes': _config.classes_
     }))
 
-def discriminant_analysis_sk_quadratic(content):
+def manifold_sk_quadradicdiscriminantanalysis(content):
     """ discriminant_analysis_sk_QuadraticDiscriminantAnalysis """
     _config = QuadraticDiscriminantAnalysis(
-        priors = content['priors'],
-        reg_param = content['reg_param'],
+        priors = None,
+        reg_param = 0.0, #content['reg_param'],
         store_covariance = content['store_covariance'],
         tol = content['tol']
     )
-    _result = _config.fit_predict(content['data'])
+    _result = _config.fit_transform(content['data'])
     return httpWrapper( json.dumps({
         'result': _result.tolist(),
         'covariance': _config.covariance_,
@@ -656,15 +704,14 @@ def discriminant_analysis_sk_quadratic(content):
 # app.on_fetched_resource += on_fetched_resource
 app = Flask(__name__)
 CORS(app)
-@app.route('/')
-def hello():
-    return "Hello World!"
 
 @app.route('/py', methods=['GET', 'POST'])
 def main():
     """ Gateway """
     content = request.get_json()
     function_to_invoke = {
+    	'survival_ll_kaplan_meier': survival_ll_kaplan_meier,
+    	'cluster_sp_agglomerative': cluster_sp_agglomerative,	
         'cluster_sk_pca': cluster_sk_pca,
         'cluster_sk_pca_incremental': cluster_sk_pca_incremental,
         'cluster_sk_pca_kernal': cluster_sk_pca_kernal,
@@ -690,12 +737,14 @@ def main():
         'cluster_sk_mean_shift': cluster_sk_mean_shift,
         'cluster_sk_agglomerative': cluster_sk_agglomerative,
         'cluster_sk_spectral': cluster_sk_spectral,
-        'discriminant_analysis_sk_linear': discriminant_analysis_sk_linear,
-        'discriminant_analysis_sk_quadratic': discriminant_analysis_sk_quadratic,
+        'manifold_sk_lineardiscriminantanalysis': manifold_sk_lineardiscriminantanalysis,
+        'manifold_sk_quadradicdiscriminantanalysis': manifold_sk_quadradicdiscriminantanalysis,
         'cluster_sk_mini_batch_dictionary_learning': cluster_sk_mini_batch_dictionary_learning,
         'cluster_sk_mini_batch_sparse_pca': cluster_sk_mini_batch_sparse_pca,
     }.get(content['method'], echo)
     return function_to_invoke(content)
 
+# if __name__ == '__main__':
+#     app.run()
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=80)
