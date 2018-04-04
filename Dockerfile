@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # Basics
 RUN apt-get -y update && \
-    # apt-get -y upgrade && \
+    apt-get -y upgrade && \
     apt-get install -y git nano
 
 # Python
@@ -18,8 +18,8 @@ RUN apt-get install -y software-properties-common && \
     pip3 install flask scipy lifelines pandas scikit-learn numpy eve && \
     pip3 install -U flask-cors && \
     git clone https://github.com/canaantt/Python
-    # dockgit clone https://github.com/mzager/Python
-    
+# dockgit clone https://github.com/mzager/Python
+
 # Start
-EXPOSE 5000
+EXPOSE 80
 CMD ["python3", "Python/api.py"]
